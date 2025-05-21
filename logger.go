@@ -25,12 +25,13 @@ const (
 )
 
 type logRequest struct {
-	Request interface{} `json:"request"`
-	Data    interface{} `json:"data"`
-	Message string      `json:"message"`
-	Level   string      `json:"level"`
-	AppName string      `json:"appName"`
-	Version string      `json:"version"`
+	Request     interface{} `json:"request"`
+	Data        interface{} `json:"data"`
+	Message     string      `json:"message"`
+	Level       string      `json:"level"`
+	AppName     string      `json:"appName"`
+	Version     string      `json:"version"`
+	ServiceName string      `json:"serviceName"`
 }
 
 func New(token string, meta map[string]interface{}) *Logger {
@@ -44,12 +45,13 @@ func New(token string, meta map[string]interface{}) *Logger {
 
 func (l *Logger) log(level LogLevel, msg string, fields map[string]interface{}) {
 	payload := logRequest{
-		Message: msg,
-		Level:   string(level),
-		AppName: fmt.Sprintf("%v", l.Meta["appName"]),
-		Version: fmt.Sprintf("%v", l.Meta["version"]),
-		Request: fields["request"],
-		Data:    fields["data"],
+		Message:     msg,
+		Level:       string(level),
+		AppName:     fmt.Sprintf("%v", l.Meta["appName"]),
+		ServiceName: fmt.Sprintf("%v", l.Meta["serviceName"]),
+		Version:     fmt.Sprintf("%v", l.Meta["version"]),
+		Request:     fields["request"],
+		Data:        fields["data"],
 	}
 
 	jsonData, err := json.Marshal(payload)
