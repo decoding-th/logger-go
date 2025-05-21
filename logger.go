@@ -24,9 +24,18 @@ const (
 	LevelError LogLevel = "error"
 )
 
+type logRequest struct {
+	Request interface{} `json:"request"`
+	Data    interface{} `json:"data"`
+	Message string      `json:"message"`
+	Level   string      `json:"level"`
+	AppName string      `json:"appName"`
+	Version string      `json:"version"`
+}
+
 func New(token string, meta map[string]interface{}) *Logger {
 	return &Logger{
-		URL:       "https://logs.decodx.co/gelf",
+		URL:       "https://gateway.decodx.co/send-log-message",
 		AuthToken: token,
 		Meta:      meta,
 		Client:    &http.Client{Timeout: 5 * time.Second},
@@ -34,22 +43,21 @@ func New(token string, meta map[string]interface{}) *Logger {
 }
 
 func (l *Logger) log(level LogLevel, msg string, fields map[string]interface{}) {
-	payload := map[string]interface{}{
-		"version":       "1.1",
-		"host":          l.Meta["appName"],
-		"short_message": msg,
-		"level":         l.mapLevel(level),
-		"timestamp":     float64(time.Now().UnixNano()) / 1e9,
+	payload := logRequest{
+		Message: msg,
+		Level:   string(level),
+		AppName: fmt.Sprintf("%v", l.Meta["appName"]),
+		Version: fmt.Sprintf("%v", l.Meta["version"]),
+		Request: fields["request"],
+		Data:    fields["data"],
 	}
 
-	for k, v := range l.Meta {
-		payload["_"+k] = v
-	}
-	for k, v := range fields {
-		payload["_"+k] = v
+	jsonData, err := json.Marshal(payload)
+	if err != nil {
+		fmt.Println("Failed to marshal payload:", err)
+		return
 	}
 
-	jsonData, _ := json.Marshal(payload)
 	req, err := http.NewRequest("POST", l.URL, bytes.NewBuffer(jsonData))
 	if err != nil {
 		fmt.Println("Failed to create request:", err)
@@ -57,9 +65,11 @@ func (l *Logger) log(level LogLevel, msg string, fields map[string]interface{}) 
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	if l.AuthToken != "" {
-		req.Header.Set("Authorization", "Basic "+l.AuthToken)
+	if l.AuthToken == "" {
+		fmt.Println("No auth token provided")
+		return
 	}
+	req.Header.Set("Authorization", l.AuthToken)
 
 	resp, err := l.Client.Do(req)
 	if err != nil {
@@ -73,18 +83,3 @@ func (l *Logger) Info(msg string, fields map[string]interface{})  { l.log(LevelI
 func (l *Logger) Warn(msg string, fields map[string]interface{})  { l.log(LevelWarn, msg, fields) }
 func (l *Logger) Error(msg string, fields map[string]interface{}) { l.log(LevelError, msg, fields) }
 func (l *Logger) Debug(msg string, fields map[string]interface{}) { l.log(LevelDebug, msg, fields) }
-
-func (l *Logger) mapLevel(level LogLevel) int {
-	switch level {
-	case LevelDebug:
-		return 7
-	case LevelInfo:
-		return 6
-	case LevelWarn:
-		return 4
-	case LevelError:
-		return 3
-	default:
-		return 6
-	}
-}
